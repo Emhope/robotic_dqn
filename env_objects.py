@@ -4,10 +4,11 @@ import scipy
 from matplotlib import pyplot as plt
 import geom_calcs
 import time
+import json
 
 
 class SceneObject:
-    def __init__(self, x, y, phi, v, w, tv, tw, nv, nw, v0, w0, dt, sprite, name=None, lidar_dist=None):
+    def __init__(self, x, y, phi, v, w, tv, tw, nv, nw, v0, w0, dt, sprite, name=None, static=False):
         self.x = x
         self.y = y
         self.phi = phi
@@ -20,6 +21,7 @@ class SceneObject:
         self.dt = dt
         self.sprite = sprite
         self.name = name
+        self.static = static
         self.f = phys_calcs.cmd_vel(
             x0=self.x,
             y0=self.y,
@@ -36,10 +38,13 @@ class SceneObject:
         )
 
     def tick(self):
-        res = next(self.f)
-        self.x, self.y, self.phi, self.v, self.w = res
+        if not self.static:
+            res = next(self.f)
+            self.x, self.y, self.phi, self.v, self.w = res
     
     def set_cmd_vel(self, v, w):
+        if self.static:
+            raise ValueError('static object cannot take cmds')
         self.f = phys_calcs.cmd_vel(
             x0=self.x,
             y0=self.y,
@@ -55,7 +60,6 @@ class SceneObject:
             dt=self.dt
         )
     
-
     def get_rect_points(self, ppm):
         # half-width, half-height
         hw, hh = [i / ppm / 2 for i in self.sprite.shape]
@@ -78,7 +82,59 @@ class SceneObject:
             [points[3], points[0]]
         ]
         return np.array(lines)
+    
+    @property
+    def pos(self):
+        return [self.x, self.y]
+    
+    def serialize(self):
+        d = dict()
+        for k, v in self.__dict__.items():
+            if k == 'f':
+                continue
+            elif k == 'sprite':
+                d[k] = v.tolist()
+            else:
+                d[k] = v
+        return d
 
+
+class Lidar:
+    def __init__(self, parent: SceneObject, d, min_angle, max_angle, max_dist, points_num):
+        '''
+        parent - the object to which the lidar is attached
+        d - distance from pos of parent on the direction of parent.phi
+        '''
+        self.parent = parent
+        self.d = d
+        self.min_angle = min_angle
+        self.max_angle = max_angle
+        self.max_dist = max_dist
+        self.points_num = points_num
+    
+    @property
+    def x(self):
+        return self.parent.x + self.d * np.cos(self.parent.phi)
+        
+    @property
+    def y(self):
+        return self.parent.y + self.d * np.sin(self.parent.phi)
+    
+    def tick(self, frame, cx, cy, ppm):
+        return phys_calcs.lidar_simulate(
+            bin_map=frame,
+            ppm=ppm,
+            cx=cx,
+            cy=cy,
+            x=self.x,
+            y=self.y,
+            phi=self.parent.phi,
+            min_angle=self.min_angle,
+            max_angle=self.max_angle,
+            points_num=self.points_num,
+            max_dist=self.max_dist
+        )
+        
 
 class Scene:
     def __init__(self, dt, map_shape, ppm):
@@ -94,8 +150,12 @@ class Scene:
         self.cy, self.cx = [i//2 for i in self.pix_map_shape]  # binmap coords of (0, 0)
         self.ppm = ppm
         self.objects = dict()
-        self.current_state = None
+        self.lidar = None
 
+    def add_lidar(self, lidar:Lidar):
+        if self.lidar is not None:
+            raise Warning('lidar is already exist. The old lidar has been replaced with a new one')
+        self.lidar = lidar
 
     def add_object(self, obj:SceneObject):
         self.objects[obj.name] = obj
@@ -104,6 +164,8 @@ class Scene:
     def tick(self):
         self.t += self.dt
         for obj_name in self.objects:
+            if self.objects[obj_name].static:
+                continue
             self.objects[obj_name].tick()
 
     def objects_lines(self):
@@ -114,6 +176,7 @@ class Scene:
 
 
     def geom_tick_lidar(self, x, y, phi, min_angle, max_angle, points_num, max_dist):
+        # deprecated. dont use
         lidar_pos = np.array([x, y])
         angles = np.linspace(phi + min_angle, phi + max_angle, points_num)[::-1]
         endpoints = np.column_stack((x + np.cos(angles) * max_dist, y + np.sin(angles) * max_dist))
@@ -158,7 +221,6 @@ class Scene:
     def render(self):
         '''
         render a frame of scene
-        return frame, and flag of collision
         '''
         frame = np.zeros(self.pix_map_shape, dtype=bool)
         # controll_sum = 0
@@ -173,3 +235,7 @@ class Scene:
             frame[ly:uy, lx:ux] |= rot_sprite
         # return frame, controll_sum == np.sum(frame)
         return frame
+    
+    def call_lidar(self):
+        f = self.render()
+        return self.lidar.tick(f, self.cx, self.cy, self.ppm)
