@@ -1,0 +1,13 @@
+{
+    "height": 0.58,
+    "width": 0.38,
+    "ppm": 100,
+    "dt": 0.01,
+    "mov_obstes": 3,
+    "vel_noize": 0.03,
+    "v": 0.38,
+    "w": 0.42,
+    "box_width": 20,
+    "box_height": 15,
+    "box_noize": 1
+}

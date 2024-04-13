@@ -1,4 +1,7 @@
 import env_objects
+from memory_buffer import MemoryBuffer
+import angle_tools
+import numpy as np
 
 
 class RLEnv:
@@ -10,7 +13,7 @@ class RLEnv:
 
         self.scene = scene
         self.agent_name = agent_name
-        self.goal = goal
+        self.goal = np.array(goal)
         self.goal_radius = goal_radius
         self.step_period = 1 / step_rate
         self.step_time = 0
@@ -19,18 +22,57 @@ class RLEnv:
         self.phys_period = self.scene.dt
         self.phys_time = 0
         
-        # TODO add buffer for agent states and lidar frames
-        self.lidar_buffer = buffer(size=lidar_frames)
-        self.agent_states = buffer(size=2)
-        self.agent_states.push(self.scene.objects[self.agent_name].pos)
+        self.lidar_buffer = MemoryBuffer(size=lidar_frames)
+        self.agent_states = MemoryBuffer(size=2)
+        self.agent_states.push(np.array(self.scene.objects[self.agent_name].pos))
+
+    @property
+    def angle_to_goal(self):
+        return angle_tools.angle_from_robot_to_purp(
+            robot_pos=self.scene.objects[self.agent_name].pos,
+            robot_phi=self.scene.objects[self.agent_name].phi,
+            purpose_pos=self.goal
+        )
+
+    def _reward(self):
+        ra, rc, rd, rg = 0, 0, 0, 0
+        done = False
+
+        # ra = abs(self.angle_to_goal) * (-1)
+        
+        rc = self.scene.check_collides(self.agent_name) * (-100)
+        if rc:
+            done = True
+        
+        prev_dist = np.linalg.norm(self.goal-self.agent_states.data[0])
+        new_dist = np.linalg.norm(self.goal-self.agent_states.data[1])
+        if new_dist < prev_dist:
+            rd = 10 * (prev_dist - new_dist)
+        else:
+            rd = -0.1
+        
+        if new_dist < self.goal_radius:
+            rg = 100
+            done = True
+        
+        return ra + rc + rd + rg, done
+        
 
     def step(self, action):
         '''
+        action - (v, w)
         return reward, done
         '''
+        self.scene.objects[self.agent_name].set_cmd_vel(*action)
         self.step_time += self.step_period
         while self.phys_time < self.step_time:
             self.phys_time += self.phys_period
             self.scene.tick()
             if self.lidar_time <= self.phys_time:
-                # TODO call lidar
+                self.lidar_time += self.lidar_period
+                l = self.scene.tick_lidar()
+                self.lidar_buffer.push(l)
+
+        self.agent_states.push(np.array(self.scene.objects[self.agent_name].pos))
+        r, done = self._reward()
+        return self.lidar_buffer, r, done

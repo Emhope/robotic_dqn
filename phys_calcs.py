@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 import cv2
 
 
-def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt):
+def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt, max_v=1.0, max_w=1.0):
     '''
     x0, y0, phi0 - initial position
     v0, w0 - initial linear and angular speed
@@ -14,11 +14,17 @@ def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt):
     dt - time step for calculation
     return iterator that calculates position of object at each dt point
     '''
+    v = min(v, max_v)
+    v0 = min(v0, max_v)
+    w0 = min(w0, max_w)
+    w = min(w, max_w)
+
     dv = v - v0
     dw = w - w0
     cur_x, cur_y, cur_phi = x0, y0, phi0
     t = 0
     while True:
+        
         cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv)
         cur_w = w0 + dw * (1 - np.exp(-t/tw)) + np.random.normal(0, nw)
         # cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv) + 0.2 * np.exp(-t/0.5)

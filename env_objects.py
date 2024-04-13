@@ -214,7 +214,7 @@ class Scene:
             for al in agent_lines:
                 for ol in obj_lines:
                     p = geom_calcs.seg_intersect(*al, *ol)
-                    if any(p==infp):
+                    if not all(p==infp):
                         return True
         return False
 
@@ -236,6 +236,6 @@ class Scene:
         # return frame, controll_sum == np.sum(frame)
         return frame
     
-    def call_lidar(self):
+    def tick_lidar(self):
         f = self.render()
         return self.lidar.tick(f, self.cx, self.cy, self.ppm)

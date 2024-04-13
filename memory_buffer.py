@@ -9,7 +9,7 @@ class MemoryBuffer:
         self.size = size
         self.updates = 0
     
-    def add(self, item):
+    def push(self, item):
         self.updates += 1
         if len(self.data) == self.size:
             self.data.pop(0)
