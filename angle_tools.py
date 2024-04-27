@@ -6,7 +6,7 @@ def get_purpose_angle(robot_pos, purpose_pos):
     '''
     calculating angle between x axis and vector from robot to purpose point
     '''
-    angle = math.atan2(purpose_pos[1] - robot_pos[1], purpose_pos[0] - robot_pos[0]) * 180 / np.pi
+    angle = np.rad2deg(math.atan2(purpose_pos[1] - robot_pos[1], purpose_pos[0] - robot_pos[0]))
     if angle < 0:
         angle += 360
 
@@ -20,7 +20,7 @@ def create_vector(angle):
 def angle_from_robot_to_purp(robot_pos, robot_phi, purpose_pos):
     # anticlockwise is positive
 
-    alhpa_r = robot_phi
+    alhpa_r = np.rad2deg(robot_phi)
     alhpa_p = get_purpose_angle(robot_pos, purpose_pos)
     if abs(alhpa_p - alhpa_r) < 0.1:
         return 0

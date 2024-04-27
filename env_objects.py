@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import geom_calcs
 import time
 import json
+from memory_profiler import profile
 
 
 class SceneObject:
@@ -145,12 +146,12 @@ class Scene:
         '''
 
         self.dt = dt
-        self.t = 0
+        # self.t = 0
         self.pix_map_shape = [i*ppm for i in map_shape[::-1]]  # (pix_y, pix_x)
         self.cy, self.cx = [i//2 for i in self.pix_map_shape]  # binmap coords of (0, 0)
         self.ppm = ppm
         self.objects = dict()
-        self.lidar = None
+        self.lidar: Lidar | None = None
 
     def add_lidar(self, lidar:Lidar):
         if self.lidar is not None:
@@ -162,7 +163,7 @@ class Scene:
 
     
     def tick(self):
-        self.t += self.dt
+        # self.t += self.dt
         for obj_name in self.objects:
             if self.objects[obj_name].static:
                 continue
@@ -218,6 +219,7 @@ class Scene:
                         return True
         return False
 
+    # @profile
     def render(self):
         '''
         render a frame of scene
@@ -232,10 +234,12 @@ class Scene:
             
             lx = ux - rot_sprite.shape[1]
             ly = uy - rot_sprite.shape[0]
-            frame[ly:uy, lx:ux] |= rot_sprite
+            frame[ly:uy, lx:ux] += rot_sprite
+
         # return frame, controll_sum == np.sum(frame)
         return frame
     
+    # @profile
     def tick_lidar(self):
         f = self.render()
         return self.lidar.tick(f, self.cx, self.cy, self.ppm)

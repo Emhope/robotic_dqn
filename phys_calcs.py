@@ -24,14 +24,18 @@ def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt, max_v=1.0, max_w=1.0
     cur_x, cur_y, cur_phi = x0, y0, phi0
     t = 0
     while True:
-        
-        cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv)
-        cur_w = w0 + dw * (1 - np.exp(-t/tw)) + np.random.normal(0, nw)
-        # cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv) + 0.2 * np.exp(-t/0.5)
-        # cur_w = w0 + dw * (1 - np.exp(-t/tw)) + np.random.normal(0, nw) + 0.2 * np.exp(-t/0.5)
+        if v == w == v0 == w0 == 0:
+            cur_v = 0
+            cur_w = 0
+        else:
+            cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv)
+            cur_w = w0 + dw * (1 - np.exp(-t/tw)) + np.random.normal(0, nw)
+            # cur_v = v0 + dv * (1 - np.exp(-t/tv)) + np.random.normal(0, nv) + 0.2 * np.exp(-t/0.5)
+            # cur_w = w0 + dw * (1 - np.exp(-t/tw)) + np.random.normal(0, nw) + 0.2 * np.exp(-t/0.5)
         cur_x += dt * cur_v * np.cos(cur_phi)
         cur_y += dt * cur_v * np.sin(cur_phi)
         cur_phi += cur_w * dt
+        cur_phi %= np.pi * 2
         t += dt
         yield cur_x, cur_y, cur_phi, cur_v, cur_w
 
