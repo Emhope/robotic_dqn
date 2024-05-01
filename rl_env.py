@@ -28,6 +28,8 @@ class RLEnv:
         self.phys_time = 0
         
         self.speed_buffer = MemoryBuffer(size=lidar_frames)
+        self.obs_dists = MemoryBuffer(size=2)
+        self.obs_dists.push(self.nearest_dist_lidar())
         self.lidar_buffer = MemoryBuffer(size=lidar_frames)
         self.agent_states = MemoryBuffer(size=2)
         self.agent_states.push(np.array(self.scene.objects[self.agent_name].pos))
@@ -53,20 +55,61 @@ class RLEnv:
             np.array(self.scene.objects[self.agent_name].pos) - self.goal
         )
 
+    def nearest_dist(self):
+        min_dist = np.inf
+        for obj_name in self.scene.objects:
+            if obj_name == self.agent_name:
+                continue
+            d = np.linalg.norm(
+                np.array(self.scene.objects[obj_name].pos)-np.array(self.scene.objects[self.agent_name].pos)
+            )
+            if d < min_dist:
+                min_dist = d
+        return min_dist
+    
+    def nearest_dist_lidar(self):
+        l = self.scene.geom_tick_lidar(
+            self.scene.objects[self.agent_name].x,
+            self.scene.objects[self.agent_name].y,
+            0,
+            0,
+            np.pi*2,
+            100,
+            5.6,
+            [self.agent_name]
+        )
+        return min(l)
+
+
     def _reward(self):
         # print(self.angle_to_goal)
-        ra, rd = 0, 0
+        # ro - antireward for near to obstacles
+        # rs - antireward for staing in one place
+        ra, rd, ro, rs = 0, 0, 0, 0
+
+        for speed in self.speed_buffer.data:
+            if (-0.1 < speed[0] < 0.1) and (-0.1 < speed[1] < 0.1):
+                continue
+            else:
+                break
+        else:
+            rs = -1
+                
+
+        # ro += 0.5 * (-1 / self.nearest_dist())
+        ro = self.obs_dists.data[1] - self.obs_dists.data[0]
 
         ra = abs(self.angle_to_goal) * (-1)
         
         prev_dist = np.linalg.norm(self.goal-self.agent_states.data[0])
         new_dist = np.linalg.norm(self.goal-self.agent_states.data[1])
-        if new_dist - prev_dist < -0.05:
-            rd = 10 * (prev_dist - new_dist)
-        else:
-            rd = -0.1
+        rd = 10 * (prev_dist - new_dist)
+        # if new_dist - prev_dist < -0.05:
+        #     rd = 10 * (prev_dist - new_dist)
+        # else:
+        #     rd = -0.1
         
-        return ra + rd
+        return ra + rd + ro + rs
         
 
     def _flatten_state(self, state):
@@ -109,8 +152,10 @@ class RLEnv:
                 ))
 
         self.agent_states.push(np.array(self.scene.objects[self.agent_name].pos))
+        self.obs_dists.push(self.nearest_dist_lidar())
+        # r = self._reward()
         r = self._reward() + 1 * reach_goal - 10 * collide
         # r = self._reward() + 100 * reach_goal - 100 * collide
         done = collide or reach_goal
         flattened_state = self._flatten_state((self.lidar_buffer.data, self.speed_buffer.data, self.angle_to_goal, self.dist_to_goal))
-        return (flattened_state, r, done)
+        return (flattened_state, r, done, collide)

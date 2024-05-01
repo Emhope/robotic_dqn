@@ -61,9 +61,9 @@ class SceneObject:
             dt=self.dt
         )
     
-    def get_rect_points(self, ppm):
+    def get_rect_points(self, ppm, safe_dist):
         # half-width, half-height
-        hw, hh = [i / ppm / 2 for i in self.sprite.shape]
+        hw, hh = [i / ppm / 2 + safe_dist for i in self.sprite.shape]
         orig_rect = np.array([
             [-hh, hh, hh, -hh],
             [-hw, -hw, hw, hw]
@@ -74,8 +74,8 @@ class SceneObject:
         d = np.concatenate((d,)*orig.shape[1], axis=1)
         return (orig + d).T
 
-    def get_rect_lines(self, ppm):
-        points = self.get_rect_points(ppm)
+    def get_rect_lines(self, ppm, safe_dist=0.0):
+        points = self.get_rect_points(ppm, safe_dist)
         lines = [
             [points[0], points[1]],
             [points[1], points[2]],
@@ -141,7 +141,7 @@ class Scene:
     def __init__(self, dt, map_shape, ppm):
         '''
         dt - time step of simulation moving objects
-        map_shape - (x, y) shpe of simulated map in meters
+        map_shape - (x, y) shape of simulated map in meters
         ppm - pixels per meter
         '''
 
@@ -152,6 +152,7 @@ class Scene:
         self.ppm = ppm
         self.objects = dict()
         self.lidar: Lidar | None = None
+        self.agent_safe_dist = 0.1
 
     def add_lidar(self, lidar:Lidar):
         if self.lidar is not None:
@@ -163,27 +164,20 @@ class Scene:
 
     
     def tick(self):
-        # self.t += self.dt
         for obj_name in self.objects:
             if self.objects[obj_name].static:
                 continue
             self.objects[obj_name].tick()
 
-    def objects_lines(self):
-        obj_lines = np.concatenate(
-            tuple(obj.get_rect_lines(self.ppm) for obj in self.objects.values())
-        )
-        return obj_lines
 
-
-    def geom_tick_lidar(self, x, y, phi, min_angle, max_angle, points_num, max_dist):
-        # deprecated. dont use
+    def geom_tick_lidar(self, x, y, phi, min_angle, max_angle, points_num, max_dist, ignore_names=None):
         lidar_pos = np.array([x, y])
         angles = np.linspace(phi + min_angle, phi + max_angle, points_num)[::-1]
         endpoints = np.column_stack((x + np.cos(angles) * max_dist, y + np.sin(angles) * max_dist))
-        # obj_lines = self.objects_lines()
         obj_lines = []
-        for obj in self.objects.values():
+        for obj_name, obj in self.objects.items():
+            if obj_name in ignore_names:
+                continue
             ls = obj.get_rect_lines(self.ppm)
             ps = np.concatenate((ls[0], ls[2]))
             d = ps - np.concatenate(([lidar_pos],)*4)
@@ -206,7 +200,7 @@ class Scene:
         
 
     def check_collides(self, robot_name):
-        agent_lines = self.objects[robot_name].get_rect_lines(self.ppm)
+        agent_lines = self.objects[robot_name].get_rect_lines(self.ppm, safe_dist=self.agent_safe_dist)
         infp = np.array([np.inf, np.inf])
         for obj_name in self.objects:
             if obj_name == robot_name:

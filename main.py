@@ -17,10 +17,10 @@ import tensorflow as tf
 dir_name = 'learnings/learning_at_' + time.asctime().replace(' ', '_').lower()
 os.makedirs(dir_name)
 
-EPISODES = 2_000
-TRAIN_REPEAT = 20
-# TARGET_UPDATE = 20
-EPSILON_UPDATE = 150
+EPISODES = 6_000
+TRAIN_REPEAT = 250
+TRAIN_TIMES = 20
+EPSILON_UPDATE = 400
 MODEL_SAVE_RATE = 50
 
 env = rl_env.RLEnv(
@@ -41,6 +41,7 @@ agent = rl_agent.RLAgent(
     lidar_frames=3,
     actions=COMMANDS
 )
+agent.epsilon_decay = 0.9992
 
 eps = 0
 steps = 0
@@ -52,37 +53,38 @@ while eps < EPISODES:
     print(f'episode {eps}/{EPISODES}; epsilon - {agent.epsilon}')
     done = False
     for i in range(env.lidar_buffer.size+1):
-        state, r, done = env.step((0, 0))
+        state, r, done, collide = env.step((0, 0))
         state = state.reshape((1, state.size, 1))
     
     rewards = []
     losses = []
-
-    while not done:
-        
+    step_start = steps
+    while (not done) and ((steps - step_start) <= 150):
         act = agent.choose_action(state)
-        new_state, reward, done = env.step(COMMANDS[act](env.scene.objects[env.agent_name]))
+        cmd = COMMANDS[act](env.scene.objects[env.agent_name])
+        new_state, reward, done, collide = env.step(cmd)
         new_state = new_state.reshape((1, new_state.size, 1))
         agent.add_dpoint(state, act, reward, new_state, done)
         state = new_state
-        
         rewards.append(reward)
-        if steps % TRAIN_REPEAT == 0 and agent.memory.full:
-            loss = agent.train()
-            losses.append(loss)
+        if steps % TRAIN_REPEAT == 0 and agent.memory.full and steps > TRAIN_REPEAT:
+            agent.update_target_net()
+            loss = agent.train(epochs=TRAIN_TIMES)
+            losses.extend(loss) 
         
-        if steps % EPSILON_UPDATE == 0:
-            agent.increase_epsilon()
+        # if steps % EPSILON_UPDATE == 0:
+        #     agent.increase_epsilon()
 
         steps += 1
-
+    agent.increase_epsilon()
     with open(f'{dir_name}/rewards.txt', 'a') as frews, open(f'{dir_name}/losses.txt', 'a') as floss:
         frews.write(' '.join(map(str, rewards))+'\n')
         floss.writelines(map(lambda i: str(i)+'\n', losses))
 
-    agent.update_target_net()
-    avg_reward = sum(rewards) / len(rewards)
-
+    if rewards:
+        avg_reward = sum(rewards) / len(rewards)
+    else:
+        avg_reward = -np.inf
     if  avg_reward > best_awg_reward:
         best_awg_reward = avg_reward
         if best_model_name:
@@ -93,24 +95,32 @@ while eps < EPISODES:
         agent.q_net.save(f'{dir_name}/{eps}episode.keras')
 
     env.reset()
-    box = env_objects.SceneObject(
-        4, 
-        0, 
-        0, 
-        0, 
-        0, 
-        1, 
-        1, 
-        0, 
-        0, 
-        0, 
-        0, 
-        0.01,
-        shapes.create_rect(np.random.uniform(1, 3), np.random.uniform(0.1, 0.3), env.scene.ppm, False),
-        'new_obssss',
-        True
-    )
-    env.scene.add_object(box)
+    if np.random.uniform(0, 1) > 0.5:
+        env.scene.objects[env.agent_name].x = np.random.uniform(-4, -6)
+        env.scene.objects[env.agent_name].y = np.random.uniform(-1, 1)
+    if np.random.uniform(0, 1) > 0.5:
+        env.scene.objects.pop('mov_obs0')
+    if np.random.uniform(0, 1) > 0.5:
+        env.scene.objects.pop('mov_obs1')
+    if np.random.uniform(0, 1) > 0.5:
+        box = env_objects.SceneObject(
+            4, 
+            0, 
+            0, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0.01,
+            shapes.create_rect(np.random.uniform(1, 3), np.random.uniform(0.1, 0.3), env.scene.ppm, False),
+            'new_obssss',
+            True
+        )
+        env.scene.add_object(box)
     eps += 1
     tf.keras.backend.clear_session()
 

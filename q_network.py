@@ -2,13 +2,13 @@ import tensorflow as tf
 import numpy as np
 
 
-def create_q_model(
+def create_q_model1(
     lidar_frames_num,
     lidar_num,
     num_actions,
     hidden_dences,
     dropout_rate
-) -> tf.keras.Model:
+    ) -> tf.keras.Model:
     inputs = tf.keras.Input((lidar_frames_num*lidar_num+2+2*(lidar_frames_num), 1))
     flatten_pos = tf.keras.layers.Flatten()(inputs[:, -2-2*(lidar_frames_num):, :])
     convs = []
@@ -33,6 +33,34 @@ def create_q_model(
             d = tf.keras.layers.Dense(128, activation='relu')(final_merge)
         else:
             d = tf.keras.layers.Dense(128, activation='relu')(d)
+    drop = tf.keras.layers.Dropout(dropout_rate)(d)
+    out = tf.keras.layers.Dense(num_actions, activation="linear")(drop)
+    m = tf.keras.Model(inputs, out)
+    m.compile(
+        optimizer="adam",
+        loss='mse'
+    )
+    return m
+
+def create_q_model2(
+    lidar_frames_num,
+    lidar_num,
+    num_actions,
+    hidden_dences,
+    dropout_rate
+    ) -> tf.keras.Model:
+    inputs = tf.keras.Input((lidar_frames_num*lidar_num+2+2*(lidar_frames_num), 1))
+    f = tf.keras.layers.Flatten()(inputs)
+    first_dence = tf.keras.layers.Dense(lidar_frames_num*lidar_num+2+2*(lidar_frames_num), activation='relu')(f)
+    drop_first = tf.keras.layers.Dropout(dropout_rate)(first_dence)
+    for i in range(hidden_dences):
+        if i == 0:
+            d = tf.keras.layers.Dense(
+                int((lidar_frames_num*lidar_num+2+2*(lidar_frames_num))*0.7), 
+                activation='relu'
+                )(drop_first)
+        else:
+            d = tf.keras.layers.Dense(256, activation='relu')(d)
     drop = tf.keras.layers.Dropout(dropout_rate)(d)
     out = tf.keras.layers.Dense(num_actions, activation="linear")(drop)
     m = tf.keras.Model(inputs, out)

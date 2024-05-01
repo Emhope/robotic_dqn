@@ -39,14 +39,36 @@ def use_q_net(net_filename, env_filename, goal, goal_r, times=10):
     for i in range(times):
         # print(i)
         env.reset()
-
-        state, reward, done = env.step((0, 0))
+        env.scene.objects[env.agent_name].x = -5
+        env.scene.objects.pop('mov_obs0')
+        env.scene.objects.pop('mov_obs1')
+        box = env_objects.SceneObject(
+            4, 
+            0, 
+            0, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            0, 
+            0.01,
+            shapes.create_rect(np.random.uniform(1, 3), np.random.uniform(0.1, 0.3), env.scene.ppm, False),
+            'new_obssss',
+            True
+        )
+        env.scene.add_object(box)
+        state, reward, done, collide = env.step((0, 0))
         r = 0
-        while r > -100 and not done:
+        steps = 0
+        while steps < 50 and not done:
+            steps += 1
             state = np.reshape(state, (1, state.size, 1))
             act = agent.choose_action(state)
             cmd = commands[act](env.scene.objects[env.agent_name])
-            state, reward, done = env.step(cmd)
+            state, reward, done, collide = env.step(cmd)
             r += reward
             print(round(r, 5), end='\r')
 
@@ -63,11 +85,13 @@ def use_q_net(net_filename, env_filename, goal, goal_r, times=10):
 
             plt.show(block=False)
             plt.pause(0.0001)
+
         print()
 
 if __name__ == '__main__':
     use_q_net(
-        'learnings/learning_at_sun_apr_28_00:00:14_2024/2000episode.keras', 'example.json',
+        'learnings/learning_at_wed_may__1_18:49:32_2024/1000episode.keras',
+        'example.json',
         goal=(6, 0),
         goal_r=0.3,
         times=100
