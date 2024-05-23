@@ -82,23 +82,35 @@ class RLEnv:
 
 
     def _reward(self):
-        # print(self.angle_to_goal)
         # ro - antireward for near to obstacles
         # rs - antireward for staing in one place
         ra, rd, ro, rs = 0, 0, 0, 0
 
+        d = 0
         for speed in self.speed_buffer.data:
+            d += speed[0] * 0.5
             if (-0.1 < speed[0] < 0.1) and (-0.1 < speed[1] < 0.1):
                 continue
             else:
                 break
         else:
-            rs = -1
-                
+            rs -= 1
+        if d < -0.05:
+            rs -= 1
 
-        # ro += 0.5 * (-1 / self.nearest_dist())
+        ro += 0.5 * (-1 / self.nearest_dist())
         ro = self.obs_dists.data[1] - self.obs_dists.data[0]
-
+        ro = 0
+        if min(self.lidar_buffer.data[-1]) < min(self.lidar_buffer.data[-2]):
+            if min(self.lidar_buffer.data[-1]) < 0.5:
+                ro -= 3
+            else:
+                ro -= 1
+        elif min(self.lidar_buffer.data[-1]) < 0.5:
+            ro -= 0.5
+        else:
+            ro += 0.1  
+        
         ra = abs(self.angle_to_goal) * (-1)
         
         prev_dist = np.linalg.norm(self.goal-self.agent_states.data[0])
@@ -119,7 +131,6 @@ class RLEnv:
         return np.concatenate((lidar, vels, goal_info))
 
 
-    # @profile
     def step(self, action):
         '''
         action - (v, w)
@@ -154,6 +165,8 @@ class RLEnv:
         self.agent_states.push(np.array(self.scene.objects[self.agent_name].pos))
         self.obs_dists.push(self.nearest_dist_lidar())
         # r = self._reward()
+        # !!! WAS GOOD when r = self._reward() + 1 * reach_goal - 10 * collide
+        # r = self._reward() + 1 * reach_goal
         r = self._reward() + 1 * reach_goal - 10 * collide
         # r = self._reward() + 100 * reach_goal - 100 * collide
         done = collide or reach_goal

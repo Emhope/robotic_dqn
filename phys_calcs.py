@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 import cv2
 
 
-def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt, max_v=1.0, max_w=1.0):
+def cmd_vel(x0, y0, phi0, v0, w0, tv, tw, nv, nw, v, w, dt, max_v=0.8, max_w=0.8):
     '''
     x0, y0, phi0 - initial position
     v0, w0 - initial linear and angular speed

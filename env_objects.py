@@ -152,6 +152,7 @@ class Scene:
         self.ppm = ppm
         self.objects = dict()
         self.lidar: Lidar | None = None
+        # self.agent_safe_dist = 0.1
         self.agent_safe_dist = 0.1
 
     def add_lidar(self, lidar:Lidar):
