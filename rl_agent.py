@@ -36,8 +36,8 @@ class RLAgent:
         self.gamma = 0.95 # discount rate
         self.epsilon = 1.0 # exploration rate
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
+        self.epsilon_decay = 0.995 # param for changing epsilon as the exponential function
+        self.epsilon_delta = 0.0002 # param for changing epsilon as the linear function
     
 
     # @profile
@@ -85,6 +85,10 @@ class RLAgent:
         self.target_net.set_weights(self.q_net.get_weights())
     
 
-    def increase_epsilon(self):
+    def increase_epsilon_exp(self):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+    
+    def increase_epsilon_lin(self):
+        if self.epsilon > self.epsilon_min:
+            self.epsilon -= self.epsilon_delta

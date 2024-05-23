@@ -1,6 +1,10 @@
 import tensorflow as tf
 import numpy as np
 
+import rl_agent
+import rl_env
+from robot_commands import commands as COMMANDS
+
 
 def create_q_model1(
     lidar_frames_num,
@@ -69,3 +73,48 @@ def create_q_model2(
         loss='mse'
     )
     return m
+
+
+def validate(net_filename, times=100):
+    env = rl_env.RLEnv(
+        scene_name='example.json',
+        agent_name='agent',
+        goal=(6, 0),
+        goal_radius=0.3,
+        step_rate=2,
+        check_collide_rate=10,
+        lidar_rate=2,
+        lidar_frames=3
+    )
+
+    agent = rl_agent.RLAgent(
+        batch_size=16,
+        mem_size=1,
+        lidar_num=env.scene.lidar.points_num,
+        lidar_frames=3,
+        actions=COMMANDS
+    )
+    agent.epsilon = 0
+    agent.q_net = tf.keras.models.load_model(net_filename)
+
+    success = 0
+    for i in range(times):
+        state, reward, done, collide = env.step((0, 0))
+        done = False
+        steps = 0
+        while (not done) and steps < 150:
+            state = state.reshape((1, state.size, 1))
+            act = agent.choose_action(state)
+            cmd = COMMANDS[act](env.scene.objects[env.agent_name])
+            new_state, reward, done, collide = env.step(cmd)
+            new_state += np.random.normal(0, 0.02, (new_state.size,))
+            new_state = new_state.reshape((1, new_state.size, 1))
+            state = new_state
+            steps += 1
+        if not collide and steps < 150:
+            success += 1
+        print(f'validation is {i+1}/{times}, success is {round(success/(i+1)*100, 2)}%', end='\r'.rjust(50))
+        
+        env.reset()
+    print(f'total success is {round(success/times*100, 2)}%'.rjust(50))
+    return success / times

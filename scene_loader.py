@@ -52,8 +52,9 @@ def load_round_scene(config_name) -> env_objects.Scene:
     )
     scene.add_lidar(lidar)
 
+    delta_angle = np.random.uniform(0, np.pi*2)
     for i in range(config.mov_obstes):
-        angle = i * (np.pi * 2 / config.mov_obstes)
+        angle = i * (np.pi * 2 / config.mov_obstes) + delta_angle
         mov_obs = env_objects.SceneObject(
             x=rad*np.cos(angle),
             y=rad*np.sin(angle),
